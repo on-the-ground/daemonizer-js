@@ -12,6 +12,7 @@ export class TaskGroup {
   }
 
   done() {
+    if (this.count <= 0) throw new Error("TaskGroup underflow: done() called more times than add()");
     this.count -= 1;
     if (this.count === 0) {
       this.waiters.forEach((r) => r());

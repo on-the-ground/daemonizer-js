@@ -33,7 +33,7 @@ export class Daemon<E, S extends SignalSource> {
     loopIntervalMs: number = 8,
     strictInterval: boolean = false
   ) {
-    if (!isSignalSource(signalSource)) throw "invalid signalSource";
+    if (!isSignalSource(signalSource)) throw new Error("invalid signalSource");
     const tg = new TaskGroup();
     const eventStream = new BoundedQueue<E>(bufferSize);
     // launchEventLoop is intentionally fire-and-forget.

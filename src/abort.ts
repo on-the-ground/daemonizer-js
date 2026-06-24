@@ -92,15 +92,20 @@ export const withAbort = <T>(
   if (!signal) return promise;
   if (signal.aborted) return Promise.reject(signal.reason);
 
-  let onAbort: () => void;
-
-  const abortPromise = new Promise<never>((_, reject) => {
-    onAbort = () => reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
     signal.addEventListener("abort", onAbort, { once: true });
-  });
 
-  return Promise.race([promise, abortPromise]).finally(() => {
-    signal.removeEventListener("abort", onAbort);
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      }
+    );
   });
 };
 
@@ -154,7 +159,7 @@ function mergeAbortSignals(signals: AbortSignal[]): AbortSignal {
     for (const signal of signals) {
       if (signal.aborted) {
         controller.abort(signal.reason);
-        break; // ✅ 첫 번째 aborted signal만 사용
+        break;
       }
     }
     for (const signal of signals) {
@@ -164,7 +169,6 @@ function mergeAbortSignals(signals: AbortSignal[]): AbortSignal {
 
   for (const signal of signals) {
     if (signal.aborted) {
-      // 이미 aborted된 경우 바로 처리
       controller.abort(signal.reason);
       for (const s of signals) {
         s.removeEventListener("abort", onAbort);
