@@ -1,6 +1,6 @@
 {
   "name": "@on-the-ground/daemonizer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A minimal async control flow framework for browser and Node.js daemons.",
   "keywords": [
     "daemon",

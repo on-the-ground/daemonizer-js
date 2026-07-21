@@ -42,4 +42,25 @@ describe("Daemon", () => {
     const result = await daemon.pushEvent(2);
     expect(result).toBe(false);
   });
+
+  it("tryPushEvent accepts when there is room and rejects when full or closed", async () => {
+    const abortController = new AbortController();
+    const daemon = new Daemon<number, AbortSignal>(
+      abortController.signal,
+      async () => new Promise((r) => setTimeout(r, 50)),
+      1
+    );
+
+    // The loop is already waiting on the queue, so `1` is handed straight to it
+    // and the buffer (capacity 1) stays empty.
+    expect(daemon.tryPushEvent(1)).toBe(true);
+    // Now the buffer holds `2` while `1` is being handled.
+    expect(daemon.tryPushEvent(2)).toBe(true);
+    // The buffer is full, so `3` is rejected.
+    expect(daemon.tryPushEvent(3)).toBe(false);
+
+    await daemon.close();
+
+    expect(daemon.tryPushEvent(4)).toBe(false);
+  });
 });

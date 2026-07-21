@@ -10,7 +10,8 @@ import { nanoid } from "nanoid";
  * It supports graceful shutdown and ensures that all events are processed before closing.
  *
  * @template E - The type of events to handle.
- * @param signal - An AbortSignal to allow cancellation of the event loop.
+ * @template S - The signal source type (a raw AbortSignal or an object embedding one).
+ * @param signalSource - An AbortSignal (or SignalSource) to allow cancellation of the event loop.
  * @param handleEvent - A function that processes each event. It should return a
  * Promise that resolves when the event is handled.
  * @param bufferSize - The size of the bounded queue buffer. Defaults to 10.
@@ -66,5 +67,14 @@ export class Daemon<E, S extends SignalSource> {
    */
   pushEvent = async (event: E): Promise<boolean> => {
     return this.eventStream.push(event);
+  };
+
+  /** * Pushes an event to the event stream without waiting.
+   * Returns true if the event was successfully pushed, false if the queue is full or closed.
+   *
+   * @param event - The event to push to the event stream.
+   */
+  tryPushEvent = (event: E): boolean => {
+    return this.eventStream.tryPush(event);
   };
 }

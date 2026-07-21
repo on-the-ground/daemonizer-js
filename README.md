@@ -22,6 +22,7 @@ npm install daemonizer
 - ✅ **Task group with lifecycle tracking**
 - ✅ **Yielding mechanism to avoid blocking**
 - ✅ **Bounded queue for backpressure**
+- ✅ **Partitioned processing for per-key ordering with cross-partition parallelism**
 - ✅ **Works in both Node.js and browser**
 
 ---
@@ -87,6 +88,9 @@ const daemon = new Daemon(signal, async (msg) => {
 // Push a task into the daemon's queue
 await daemon.pushEvent({ type: "log", content: "hello" });
 
+// Or push without waiting for queue space—returns false if full or closed
+const accepted = daemon.tryPushEvent({ type: "log", content: "hello" });
+
 // Gracefully shut down when you're done
 await daemon.close();
 ```
@@ -97,6 +101,40 @@ await daemon.close();
 - Backpressure-safe via internal bounded queue
 - Auto-shuts down when `AbortSignal` is aborted
 - One-liner setup: no boilerplate, no ceremony
+
+---
+
+### `PartitionedDaemon` – Parallel Processing with Per-key Ordering
+
+Backed by N `Daemon` instances, one per partition. Events are routed to a partition
+by hashing a key extracted from each event, so events sharing a key always land on
+the same partition (preserving order) while different partitions process in parallel—
+analogous to Kafka's partition model.
+
+```ts
+import { PartitionedDaemon } from "@on-the-ground/daemonizer";
+
+const daemon = new PartitionedDaemon(
+  signal,
+  async (_signal, event) => {
+    console.log("received:", event);
+  },
+  (event) => event.userId, // key extractor: decides the partition
+  4, // partitionCount
+  10 // bufferSizePerPartition
+);
+
+await daemon.pushEvent({ userId: 42, type: "log", content: "hello" });
+
+// Closes all partitions in parallel and waits for every one to drain.
+await daemon.close();
+```
+
+#### ✅ Features
+
+- Per-key ordering, cross-partition parallelism
+- Same `pushEvent` / `tryPushEvent` / `close` surface as `Daemon`
+- Shares one `AbortSignal` and handler across all partitions
 
 ---
 
