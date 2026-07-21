@@ -106,22 +106,27 @@ await daemon.close();
 
 ### `PartitionedDaemon` – Parallel Processing with Per-key Ordering
 
-Backed by N `Daemon` instances, one per partition. Events are routed to a partition
-by hashing a key extracted from each event, so events sharing a key always land on
-the same partition (preserving order) while different partitions process in parallel—
-analogous to Kafka's partition model.
+Routes events to one of N `Daemon` instances by hashing a key extracted from each event,
+so events sharing a key always land on the same partition (preserving order) while
+different partitions process in parallel—analogous to Kafka's partition model.
+`PartitionedDaemon` builds every partition itself, by calling your `partitionFactory` once
+per index — and since it built them, it's the one that closes them too. Because the
+factory runs fresh for each index, each call can close over its own local state.
 
 ```ts
-import { PartitionedDaemon } from "@on-the-ground/daemonizer";
+import { Daemon, PartitionedDaemon } from "@on-the-ground/daemonizer";
 
+// Each partition owns an independent instance — they never see each other's state.
 const daemon = new PartitionedDaemon(
-  signal,
-  async (_signal, event) => {
-    console.log("received:", event);
+  () => {
+    const store = new Map<number, unknown>();
+    return new Daemon(signal, async (_signal, event) => {
+      store.set(event.userId, event);
+      console.log("received:", event);
+    }, 10 /* bufferSize */);
   },
-  (event) => event.userId, // key extractor: decides the partition
   4, // partitionCount
-  10 // bufferSizePerPartition
+  (event) => event.userId // key extractor: decides the partition
 );
 
 await daemon.pushEvent({ userId: 42, type: "log", content: "hello" });
@@ -130,11 +135,22 @@ await daemon.pushEvent({ userId: 42, type: "log", content: "hello" });
 await daemon.close();
 ```
 
+If every partition should just share one stateless handler, the factory just ignores its
+index and returns the same shape every time:
+
+```ts
+const daemon = new PartitionedDaemon(
+  () => new Daemon(signal, handleEvent, 10),
+  4,
+  (event) => event.userId
+);
+```
+
 #### ✅ Features
 
 - Per-key ordering, cross-partition parallelism
 - Same `pushEvent` / `tryPushEvent` / `close` surface as `Daemon`
-- Shares one `AbortSignal` and handler across all partitions
+- Owns every partition it builds via `partitionFactory`, so per-partition local state is just a closure away and lifecycle (`close()`) stays unambiguous
 
 ---
 
